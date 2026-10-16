@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weekly Learning Log</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --text:#1d2330; --muted:#667085; --line:#dfe3ea; --accent:#2b5fd9; --bad:#c62828; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14171d; --card:#1d222b; --text:#e6e9ef; --muted:#97a0b0; --line:#2e3542; --accent:#6c93f5; --bad:#ef6b6b; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:24px 16px; background:var(--bg); color:var(--text); font:15px/1.4 system-ui, sans-serif; }
+  main { max-width: 980px; margin: 0 auto; }
+  h1 { margin:0 0 4px; font-size:1.5rem; }
+  .sub { color:var(--muted); margin-bottom:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; }
+  .weekbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+  .weekbar .label { font-weight:600; flex:1; min-width:180px; }
+  button { font:inherit; padding:7px 12px; border-radius:6px; border:1px solid var(--line); background:var(--card); color:var(--text); cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.danger { color:var(--bad); }
+  .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:12px; align-items:end; }
+  label { display:flex; flex-direction:column; gap:4px; font-size:.8rem; color:var(--muted); font-weight:600; }
+  input, select { font:inherit; padding:7px 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--text); width:100%; }
+  input.invalid { border-color:var(--bad); }
+  .hint { font-size:.75rem; color:var(--muted); font-weight:400; }
+  .err { color:var(--bad); font-size:.8rem; min-height:1.1em; margin-top:8px; }
+  .tablewrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { padding:8px 10px; text-align:left; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th { font-size:.75rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+  td.num, th.num { text-align:right; }
+  tfoot td { font-weight:600; border-bottom:none; }
+  .empty { color:var(--muted); text-align:center; padding:20px; }
+  .hidden { display:none !important; }
+  .center { max-width:420px; margin:12vh auto 0; text-align:center; }
+  .center .card { display:flex; flex-direction:column; gap:12px; }
+  .center button { padding:12px; }
+  .topbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .topbar h1 { flex:1; min-width:200px; }
+  .status { font-size:.8rem; color:var(--muted); }
+  .status.dirty { color:var(--bad); }
+  @media print { .noprint { display:none !important; } body { background:#fff; color:#000; } }
+</style>
+</head>
+<body>
+<main id="startScreen" class="center">
+  <h1>Weekly Learning Log</h1>
+  <div class="sub">Open an existing learning log or start a new one.</div>
+  <div class="card">
+    <button class="primary" id="newLog">Create a new learning log</button>
+    <button id="openLog">Open an existing learning log</button>
+    <div class="err" id="startErr"></div>
+  </div>
+  <input type="file" id="fileInput" accept=".json,application/json" class="hidden">
+</main>
+
+<main id="namePrompt" class="center hidden">
+  <h1>New Learning Log</h1>
+  <form class="card" id="nameForm" autocomplete="off">
+    <label>What is your name? <input type="text" id="nameInput" required></label>
+    <button class="primary" type="submit">Continue</button>
+    <button type="button" id="nameBack">Back</button>
+  </form>
+</main>
+
+<main id="app" class="hidden">
+  <div class="topbar noprint">
+    <h1 id="title">Weekly Learning Log</h1>
+    <span class="status" id="status"></span>
+    <button class="primary" id="save">Save</button>
+    <button id="close">Close log</button>
+  </div>
+  <div class="sub" id="subtitle">Record each study session. Click Save to store the log as a file on your computer.</div>
+
+  <div class="weekbar noprint">
+    <button id="prev">&larr; Prev</button>
+    <div class="label" id="weekLabel"></div>
+    <button id="thisWeek">This week</button>
+    <button id="next">Next &rarr;</button>
+  </div>
+
+  <form class="card noprint" id="form" autocomplete="off">
+    <div class="grid">
+      <label>Date <input type="date" id="date" required></label>
+      <label>Start time <input type="time" id="start" required></label>
+      <label>End time <input type="time" id="end" required></label>
+      <label>Time spent (min)
+        <input type="number" id="spent" min="0" step="1" required>
+        <span class="hint" id="spentHint"></span>
+      </label>
+      <label>Pace
+        <select id="pace">
+          <option>slow</option><option selected>normal</option><option>fast</option>
+        </select>
+      </label>
+      <label>Location <input type="text" id="location" value="Home" required></label>
+      <label>Engagement (1–5)
+        <select id="eng"><option>1</option><option>2</option><option>3</option><option>4</option><option selected>5</option></select>
+      </label>
+      <button type="submit" class="primary">Add entry</button>
+    </div>
+    <div class="err" id="err"></div>
+  </form>
+
+  <div class="card">
+    <div class="tablewrap">
+      <table>
+        <thead><tr>
+          <th>Date</th><th>Start</th><th>End</th><th class="num">Time spent (min)</th>
+          <th>Pace</th><th>Location</th><th class="num">Engagement</th><th class="noprint"></th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+        <tfoot id="foot"></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <div class="noprint">
+    <button id="csv">Export week as CSV</button>
+    <button id="pdf">Save as PDF</button>
+    <button id="print">Print</button>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+let entries = [];
+let logName = '';
+let fileHandle = null;   // set when the browser supports the File System Access API
+let dirty = false;
+
+function setDirty(v) {
+  dirty = v;
+  $('status').textContent = v ? 'Unsaved changes' : 'All changes saved';
+  $('status').classList.toggle('dirty', v);
+}
+window.addEventListener('beforeunload', ev => { if (dirty) { ev.preventDefault(); ev.returnValue = ''; } });
+
+function show(id) {
+  ['startScreen','namePrompt','app'].forEach(x => $(x).classList.toggle('hidden', x !== id));
+}
+
+function enterLog() {
+  $('title').textContent = `${logName}'s Weekly Learning Log`;
+  document.title = `${logName} – Weekly Learning Log`;
+  viewWeek = weekStart(new Date());
+  resetForm();
+  render();
+  show('app');
+}
+
+// ---- Start screen ----
+$('newLog').onclick = () => { $('nameInput').value = ''; show('namePrompt'); $('nameInput').focus(); };
+$('nameBack').onclick = () => show('startScreen');
+$('nameForm').addEventListener('submit', ev => {
+  ev.preventDefault();
+  const n = $('nameInput').value.trim();
+  if (!n) return;
+  logName = n; entries = []; fileHandle = null;
+  enterLog(); setDirty(true);
+});
+
+function loadFromText(text, handle) {
+  let data;
+  try { data = JSON.parse(text); } catch (e) { data = null; }
+  if (!data || typeof data.name !== 'string' || !Array.isArray(data.entries)) {
+    $('startErr').textContent = 'That file is not a valid learning log.';
+    return;
+  }
+  $('startErr').textContent = '';
+  logName = data.name; entries = data.entries; fileHandle = handle || null;
+  enterLog(); setDirty(false);
+}
+
+$('openLog').onclick = async () => {
+  if (window.showOpenFilePicker) {
+    try {
+      const [h] = await showOpenFilePicker({ types: [{ description: 'Learning log', accept: { 'application/json': ['.json'] } }] });
+      loadFromText(await (await h.getFile()).text(), h);
+    } catch (e) { /* cancelled */ }
+  } else {
+    $('fileInput').click();
+  }
+};
+$('fileInput').addEventListener('change', async () => {
+  const f = $('fileInput').files[0];
+  $('fileInput').value = '';
+  if (f) loadFromText(await f.text(), null);
+});
+
+// ---- Save ----
+async function saveLog() {
+  const text = JSON.stringify({ app: 'weekly-learning-log', version: 1, name: logName, entries }, null, 2);
+  const suggested = `${logName.replace(/[^\w\- ]+/g, '').trim() || 'learning'}-learning-log.json`;
+  try {
+    if (window.showSaveFilePicker) {
+      if (!fileHandle) fileHandle = await showSaveFilePicker({ suggestedName: suggested, types: [{ description: 'Learning log', accept: { 'application/json': ['.json'] } }] });
+      const w = await fileHandle.createWritable();
+      await w.write(text); await w.close();
+    } else {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+      a.download = suggested; a.click(); URL.revokeObjectURL(a.href);
+    }
+    setDirty(false);
+  } catch (e) { if (e.name !== 'AbortError') alert('Could not save: ' + e.message); }
+}
+$('save').onclick = saveLog;
+$('close').onclick = () => {
+  if (dirty && !confirm('You have unsaved changes. Close without saving?')) return;
+  setDirty(false); show('startScreen');
+};
+
+const pad = n => String(n).padStart(2, '0');
+const fmtDate = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const fmtTime = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const parseDate = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); };
+const toMin = t => { const [h,m] = t.split(':').map(Number); return h*60+m; };
+// End before start is treated as crossing midnight.
+const diffMin = (s, e) => { let d = toMin(e) - toMin(s); if (d < 0) d += 1440; return d; };
+const weekStart = d => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+
+let viewWeek = weekStart(new Date());
+let spentManual = false;
+
+function resetForm() {
+  const now = new Date(), start = new Date(now.getTime() - 7200000);
+  $('date').value = fmtDate(start);
+  $('start').value = fmtTime(start);
+  $('end').value = fmtTime(now);
+  $('pace').value = 'normal';
+  $('location').value = 'Home';
+  $('eng').value = '5';
+  spentManual = false;
+  syncSpent();
+}
+
+function defaultSpent() { return diffMin($('start').value, $('end').value); }
+
+function syncSpent() {
+  if (!$('start').value || !$('end').value) return;
+  const def = defaultSpent();
+  if (!spentManual) $('spent').value = def;
+  $('spent').max = def;
+  $('spentHint').textContent = `Default ${def}; may be lowered`;
+  validate();
+}
+
+function validate() {
+  const v = Number($('spent').value), def = defaultSpent();
+  const bad = $('spent').value === '' || !Number.isInteger(v) || v < 0 || v > def;
+  $('spent').classList.toggle('invalid', bad);
+  $('err').textContent = bad ? `Time spent must be a whole number from 0 to ${def}.` : '';
+  return !bad;
+}
+
+['start','end'].forEach(id => $(id).addEventListener('input', () => {
+  // If the user lowered time spent, keep it as long as it's still within the new default.
+  if (spentManual && Number($('spent').value) > defaultSpent()) spentManual = false;
+  syncSpent();
+}));
+$('spent').addEventListener('input', () => {
+  spentManual = $('spent').value !== '' && Number($('spent').value) !== defaultSpent();
+  validate();
+});
+
+$('form').addEventListener('submit', ev => {
+  ev.preventDefault();
+  if (!validate()) return;
+  entries.push({
+    id: Date.now() + Math.random(),
+    date: $('date').value, start: $('start').value, end: $('end').value,
+    spent: Number($('spent').value), pace: $('pace').value,
+    location: $('location').value.trim() || 'Home', engagement: Number($('eng').value)
+  });
+  setDirty(true);
+  viewWeek = weekStart(parseDate($('date').value));
+  resetForm();
+  render();
+});
+
+function weekEntries() {
+  const s = fmtDate(viewWeek), e = new Date(viewWeek); e.setDate(e.getDate() + 6);
+  const end = fmtDate(e);
+  return entries.filter(x => x.date >= s && x.date <= end)
+    .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
+}
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function render() {
+  const e = new Date(viewWeek); e.setDate(e.getDate() + 6);
+  const o = { month: 'short', day: 'numeric' };
+  $('weekLabel').textContent = `Week of ${viewWeek.toLocaleDateString(undefined, o)} – ${e.toLocaleDateString(undefined, {...o, year:'numeric'})}`;
+  const list = weekEntries();
+  $('rows').innerHTML = list.length ? list.map(x => `
+    <tr>
+      <td>${esc(x.date)}</td><td>${esc(x.start)}</td><td>${esc(x.end)}</td>
+      <td class="num">${x.spent}</td><td>${esc(x.pace)}</td><td>${esc(x.location)}</td>
+      <td class="num">${x.engagement}</td>
+      <td class="noprint"><button class="danger" data-del="${x.id}">Delete</button></td>
+    </tr>`).join('') : `<tr><td colspan="8" class="empty">No entries this week.</td></tr>`;
+  const total = list.reduce((a, x) => a + x.spent, 0);
+  $('foot').innerHTML = list.length ? `<tr><td colspan="3">Weekly total</td><td class="num">${total} min (${(total/60).toFixed(1)} h)</td><td colspan="3"></td><td class="noprint"></td></tr>` : '';
+}
+
+$('rows').addEventListener('click', ev => {
+  const id = ev.target.dataset.del;
+  if (!id || !confirm('Delete this entry?')) return;
+  entries = entries.filter(x => String(x.id) !== id);
+  setDirty(true); render();
+});
+
+const shift = n => { viewWeek.setDate(viewWeek.getDate() + n * 7); render(); };
+$('prev').onclick = () => shift(-1);
+$('next').onclick = () => shift(1);
+$('thisWeek').onclick = () => { viewWeek = weekStart(new Date()); render(); };
+$('pdf').onclick = async () => {
+  if (!window.jspdf) { alert('The PDF library could not be loaded (internet connection needed). Use Print and choose "Save as PDF" instead.'); return; }
+  const list = weekEntries();
+  const end = new Date(viewWeek); end.setDate(end.getDate() + 6);
+  const f = { year: 'numeric', month: 'long', day: 'numeric' };
+  const doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter' });
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(18);
+  doc.text(`Weekly Learning Log for ${logName}`, 40, 50);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(12);
+  doc.text(`${viewWeek.toLocaleDateString('en-US', f)} to ${end.toLocaleDateString('en-US', f)}`, 40, 72);
+  const total = list.reduce((a, x) => a + x.spent, 0);
+  doc.autoTable({
+    startY: 90,
+    head: [['Date','Start','End','Time Spent (min)','Pace','Location','Engagement']],
+    body: list.map(x => [x.date, x.start, x.end, x.spent, x.pace, x.location, x.engagement]),
+    foot: list.length ? [['Weekly total', '', '', total, '', '', '']] : [],
+    headStyles: { fillColor: [43, 95, 217] },
+    footStyles: { fillColor: [235, 238, 245], textColor: 20 },
+    styles: { fontSize: 10 }
+  });
+  if (!list.length) doc.text('No entries this week.', 40, 120);
+  const name = `learning-log-${fmtDate(viewWeek)}_${logName.replace(/[\\/:*?"<>|]+/g, '').trim()}.pdf`;
+  if (window.showSaveFilePicker) {
+    try {
+      const h = await showSaveFilePicker({ suggestedName: name, types: [{ description: 'PDF document', accept: { 'application/pdf': ['.pdf'] } }] });
+      const w = await h.createWritable();
+      await w.write(doc.output('blob')); await w.close();
+    } catch (e) { if (e.name !== 'AbortError') alert('Could not save PDF: ' + e.message); }
+  } else {
+    doc.save(name);  // browsers without a save dialog API download it directly
+  }
+};
+$('print').onclick = () => window.print();
+$('csv').onclick = () => {
+  const q = v => `"${String(v).replace(/"/g, '""')}"`;
+  const rows = [['Date','Start Time','End Time','Time Spent (min)','Pace','Location','Engagement'],
+    ...weekEntries().map(x => [x.date, x.start, x.end, x.spent, x.pace, x.location, x.engagement])];
+  const blob = new Blob([rows.map(r => r.map(q).join(',')).join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `learning-log-${fmtDate(viewWeek)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+
+resetForm();
+</script>
+</body>
+</html>
